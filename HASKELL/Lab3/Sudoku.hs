@@ -2,6 +2,7 @@ module Sudoku where
 
 import Test.QuickCheck
 import Data.Char
+import Data.Maybe
 ------------------------------------------------------------------------------
 
 -- | Representation of sudoku puzzles (allows some junk)
@@ -110,21 +111,29 @@ charToCell c
 
 -- | cell generates an arbitrary cell in a Sudoku
 cell :: Gen (Cell)
-cell = undefined
+cell = frequency [(1,justCell),(9,emptyCell)]
+  where
+    justCell = do
+      n <- choose(1, 9)
+      return(Just n)
+    emptyCell = do 
+      return Nothing
 
 
 -- * C2
 
 -- | an instance for generating Arbitrary Sudokus
 instance Arbitrary Sudoku where
-  arbitrary = undefined
+  arbitrary = do
+    rows <- vectorOf 9 (vectorOf 9 cell)
+    return(Sudoku rows)
 
  -- hint: get to know the QuickCheck function vectorOf
  
 -- * C3
 
 prop_Sudoku :: Sudoku -> Bool
-prop_Sudoku = undefined
+prop_Sudoku sudoku = isSudoku sudoku
   -- hint: this definition is simple!
   
 ------------------------------------------------------------------------------
@@ -135,13 +144,25 @@ type Block = [Cell] -- a Row is also a Cell
 -- * D1
 
 isOkayBlock :: Block -> Bool
-isOkayBlock = undefined
+isOkayBlock block = all isUnique (filter isJust block)
+  where
+    isUnique :: Maybe Int -> Bool
+    isUnique (Just n) = countOccurrences n block == 1
+
+    countOccurrences :: Int -> Block -> Int
+    countOccurrences n block = length (filter (\x -> x == Just n) block)
 
 
 -- * D2
 
 blocks :: Sudoku -> [Block]
-blocks = undefined
+blocks (Sudoku rows) = rows ++ columns rows ++ 3x3block rows
+
+columns :: [Row] -> [Block]
+column rows = undefined
+
+3x3block :: [Row] -> [Block]
+
 
 prop_blocks_lengths :: Sudoku -> Bool
 prop_blocks_lengths = undefined
