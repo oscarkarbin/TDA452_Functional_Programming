@@ -3,6 +3,8 @@ module Sudoku where
 import Test.QuickCheck
 import Data.Char
 import Data.Maybe
+import Data.List
+
 ------------------------------------------------------------------------------
 
 -- | Representation of sudoku puzzles (allows some junk)
@@ -77,7 +79,7 @@ printSudoku (Sudoku rows) = do
   putStrLn (unlines (map rowToString rows))
   where
     rowToString :: Row -> String
-    rowToString row = map cellToChar row
+    rowToString = map cellToChar
 
     cellToChar :: Cell -> Char
     cellToChar (Just n) = head (show n)
@@ -97,7 +99,7 @@ readSudoku filePath = do
     let sudokuRows = map (map charToCell) (lines contents)
         sudoku = Sudoku sudokuRows
     if isSudoku sudoku
-        then return (sudoku)
+        then return sudoku
         else error "Not a Sudoku!"
 
 charToCell :: Char -> Cell
@@ -110,7 +112,7 @@ charToCell c
 -- * C1
 
 -- | cell generates an arbitrary cell in a Sudoku
-cell :: Gen (Cell)
+cell :: Gen Cell
 cell = frequency [(1,justCell),(9,emptyCell)]
   where
     justCell = do
@@ -132,8 +134,9 @@ instance Arbitrary Sudoku where
  
 -- * C3
 
+-- simple test
 prop_Sudoku :: Sudoku -> Bool
-prop_Sudoku sudoku = isSudoku sudoku
+prop_Sudoku = isSudoku 
   -- hint: this definition is simple!
   
 ------------------------------------------------------------------------------
@@ -142,6 +145,8 @@ type Block = [Cell] -- a Row is also a Cell
 
 
 -- * D1
+-- | Checks if a block in the Sudoku puzzle is valid.
+--   A block is valid if it contains unique digits (1-9) and no duplicates.
 
 isOkayBlock :: Block -> Bool
 isOkayBlock block = all isUnique (filter isJust block)
@@ -154,23 +159,34 @@ isOkayBlock block = all isUnique (filter isJust block)
 
 
 -- * D2
-
+-- | Extracts all blocks (rows, columns, and 3x3 subgrids) from a Sudoku puzzle.
 blocks :: Sudoku -> [Block]
-blocks (Sudoku rows) = rows ++ columns rows ++ 3x3block rows
-
-columns :: [Row] -> [Block]
-column rows = undefined
-
-3x3block :: [Row] -> [Block]
+blocks (Sudoku rows) = rows ++ transpose rows ++ blocks3x3 rows
 
 
+-- | Extracts 3x3 subgrids from a list of rows.
+blocks3x3 :: [Row] -> [Block]
+blocks3x3 rows = concatMap (map concat . transpose . map (listSplit 3)) (listSplit 3 rows)
+
+-- | Splits a list into smaller chunks of a specified size.
+listSplit:: Int -> [a] -> [[a]]
+listSplit _ [] = []
+listSplit n xs = take n xs: listSplit n (drop n xs)
+      
+
+-- | Property test function that checks if the lengths of all blocks in a Sudoku puzzle are valid.
 prop_blocks_lengths :: Sudoku -> Bool
-prop_blocks_lengths = undefined
+prop_blocks_lengths sudoku =
+    length (blocks sudoku) == 3 * 9 &&
+    all (\block -> length block == 9) (blocks sudoku)
 
 -- * D3
 
+-- | Checks if a Sudoku puzzle is valid by ensuring that all its blocks (rows, columns, and 3x3 subgrids)
+--   do not contain repeated digits (1-9).
 isOkay :: Sudoku -> Bool
-isOkay = undefined
+isOkay sudoku =  all isOkayBlock (blocks sudoku)
+
 
 
 ---- Part A ends here --------------------------------------------------------
