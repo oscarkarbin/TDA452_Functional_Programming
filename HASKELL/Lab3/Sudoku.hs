@@ -200,40 +200,114 @@ type Pos = (Int,Int)
 
 -- * E1
 
+-- | Extracts all blank positions (cells with no value) from a Sudoku puzzle.
+-- It iterates over each cell in the Sudoku grid, returning a list of positions where the cells are blank.
 blanks :: Sudoku -> [Pos]
-blanks = undefined
+blanks (Sudoku rows) = [(row,col) | (row, rowValues) <- zip [0..8] rows
+                                  , (col, colValues) <- zip [0..8] rowValues
+                                  , isNothing colValues]
 
---prop_blanks_allBlanks :: ...
---prop_blanks_allBlanks =
+-- | Property to check that a completely blank Sudoku has exactly 81 blank cells.
+prop_blanks_allBlanks :: Bool
+prop_blanks_allBlanks = length (blanks allBlankSudoku) == 81
+
 
 
 -- * E2
+-- | Updates a given list with a new value at a specified index.
+-- For example, ['a','b','c','d'] updated at index 1 with 'X' results in ['a','X','c','d'].
+(!!=) :: [a] -> (Int, a) -> [a]
+xs !!= (i, newValue) = take i xs ++ [newValue] ++ drop (i + 1) xs
 
-(!!=) :: [a] -> (Int,a) -> [a]
-xs !!= (i,y) = undefined
-
---prop_bangBangEquals_correct :: ...
---prop_bangBangEquals_correct =
+-- | Property to test the correctness of the !!= function.
+-- It checks that after the update, the element at the specified index is equal to the new value.
+prop_bangBangEquals_correct :: [Char] -> (Int, Char) -> Property
+prop_bangBangEquals_correct xs (i, y) =
+  i >= 0 && i < length xs ==>
+    (xs !!= (i, y)) !! i === y
 
 
 -- * E3
-
+-- | Updates a Sudoku puzzle at a specified position (row and column) with a new cell value.
+-- If the specified position is out of bounds, it returns the unchanged Sudoku.
 update :: Sudoku -> Pos -> Cell -> Sudoku
-update = undefined
+update (Sudoku rows) (row, col) newVal
+  | row < 0 || row >= 9 || col < 0 || col >= 9 = Sudoku rows
+  | otherwise = Sudoku (rows !!= (row, (rows !! row) !!= (col, newVal)))
 
---prop_update_updated :: ...
---prop_update_updated =
+-- | Property to check that the update function correctly updates the cell at a specified position.
+-- It validates that if the position is valid, the cell at that position contains the new value.
+prop_update_updated :: Sudoku -> Pos -> Cell -> Bool
+prop_update_updated sudoku (row, col) newVal
+  | row < 0 || row >= 9 || col < 0 || col >= 9 = updatedSudoku == sudoku -- Here we check that no change occurs on invalid position
+  | otherwise = getCell updatedSudoku (row, col) == newVal
+  where
+    updatedSudoku = update sudoku (row, col) newVal
+    getCell (Sudoku rows) (r, c) = (rows !! r) !! c
 
-
-------------------------------------------------------------------------------
 
 -- * F1
 
+-- | The main function to solve a Sudoku puzzle. It returns a solved Sudoku (if solvable) or Nothing otherwise.
+-- It uses a recursive helper function 'solve'' that generates a list of all possible solutions,
+-- and lazily evaluates to find the first valid solution.
+solve :: Sudoku -> Maybe Sudoku
+solve sudoku
+  | not $ isOkay sudoku = Nothing
+  | otherwise = case solve' sudoku (blanks sudoku) of
+      [] -> Nothing
+      (s:_) -> Just s
+
+-- | Recursive helper function for 'solve'. It takes a Sudoku and a list of blank positions,
+-- and returns a list of all possible solutions.
+solve' :: Sudoku -> [Pos] -> [Sudoku]
+solve' sudoku []
+  | isOkay sudoku = [sudoku]
+  | otherwise = []
+solve' sudoku (pos:poss)
+  | not $ isOkay sudoku = []
+  | otherwise = concatMap (`solve'` poss) [update sudoku pos (Just val) | val <- [1..9]]
+
 
 -- * F2
+-- | Reads a Sudoku puzzle from a file, solves it, and prints the solution or a message if there's no solution.
+readAndSolve :: FilePath -> IO()
+readAndSolve inputfile = do
+  sud <- readSudoku inputfile
+  maybe (putStrLn "(No solution)") printSudoku (solve sud)
 
 
 -- * F3
+-- | Checks if one Sudoku is a solution of another. It verifies that the first Sudoku (solution) is valid,
+-- completely filled, and all its filled cells match with the cells in the second Sudoku (candidate).
+isSolutionOf :: Sudoku -> Sudoku -> Bool
+isSolutionOf solution candidate =
+    isSudoku solution &&
+    isSudoku candidate &&
+    isFilled solution &&
+    isOkay solution &&
+    candidate `contains` solution
 
+-- | Helper function for 'isSolutionOf'. It checks if all filled cells in the second Sudoku (candidate)
+-- match with the corresponding cells in the first Sudoku (solution).
+contains :: Sudoku -> Sudoku -> Bool
+contains (Sudoku rows1) (Sudoku rows2) =
+    all (\(row1, row2) -> all cellMatches (zip row1 row2)) (zip rows1 rows2)
+  where
+    cellMatches :: (Cell, Cell) -> Bool
+    cellMatches (cell1, cell2) =
+        case (cell1, cell2) of
+            (Nothing, _)       -> True
+            (Just n1, Just n2) -> n1 == n2
+            _                  -> False
 
 -- * F4
+-- | Property to ensure the soundness of the 'solve' function.
+-- It verifies that if a solution is found for a Sudoku, it is indeed a valid solution of the original puzzle.
+prop_SolveSound :: Sudoku -> Property
+prop_SolveSound sudoku =
+  isJust (solve sudoku) ==>
+    fromJust (solve sudoku) `isSolutionOf` sudoku
+
+-- | A utility function to run QuickCheck tests with a reduced number of checks for efficiency.
+fewerChecks prop = quickCheckWith stdArgs{maxSuccess=30 } prop
