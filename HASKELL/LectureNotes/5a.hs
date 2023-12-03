@@ -71,10 +71,60 @@ calculation = addition <|> multiplication
 
 -- 5A (4) Expression Parser version 1
 
+eval :: Expr -> Integer
+eval (Num n) = n
+eval (Add a b) = eval a + eval b
+eval (Mul a b) = eval a * eval b
+
+
 data Expr 
     = Num Integer
     | Add Expr Expr
     | Mul Expr Expr
     deriving (Eq, Show)
 
---expr, term, factor :: Parser Expr
+expr, term, factor :: Parser Expr
+
+expr = foldl1 Add <$> chain term (char '+')
+term = foldl1 Mul <$> chain factor (char '*')
+factor = Num <$> number <|> char '(' *> expr <* char ')'
+
+
+{- -- simplifications
+do
+char '('
+e <- expr
+char ')'
+return e
+-}
+-- do
+-- t <- term
+-- ts <- zeroOrMore (do char '+'; term)
+-- return $ foldl Add t ts
+-- do
+-- ts <- chain factor (char '*')
+-- return (foldl Mul ts)
+-- t <- factor
+-- ts <- zeroOrMore (do char '*'; factor)
+-- return $ foldl Mul t ts
+
+-- library function:
+chain :: Parser item -> Parser sep -> Parser [item]
+chain item sep = do
+    i <- item
+    is <- zeroOrMore (do sep; item)
+    return (i:is)
+
+--------------------------------------------------------------------------------
+-- * The simple calculator example
+main = do 
+    putStrLn "Welcome to the simple calculator!"
+    forever readEvalPrint
+
+readEvalPrint = do
+    putStr "What would you like to calculate?"
+    s <- getLine
+    let s' = filter (not . isSpace) s
+    case parse expr s' of
+        Just (e, "") -> print $ eval e
+        Nothing -> putStrLn "Invalid Expression!"
