@@ -82,7 +82,7 @@ sum0 (n:ns) = n + sum0 ns
 -- Tail recursive would solve this in other languages.
 sum1 = s 0 
     where s acc []       = acc
-          s acc (n:ns) = s (n+acc) ns -- Beacause haskell is lazy (n+acc) isn't calculated until we have parsed thorugh the entire list
+          s acc (n:ns) = s (n+acc) ns -- Beacause haskell is lazy (n+acc) isn't calculated until we have treversed thorugh the entire list
                                         -- This means that we have the same problem as above. We have only moved it from the stack to somewhere else. (heap??)
 
 
