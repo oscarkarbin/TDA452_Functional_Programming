@@ -87,6 +87,8 @@ parse (P f ) s = f s
 -- satisfying
 --
 -- prop> parse readsP s == listToMaybe (reads s)
+-- Variable not in scope: s :: String
+-- Variable not in scope: s :: String
 
 readsP :: Read a => Parser a
 readsP = P $ listToMaybe . reads 

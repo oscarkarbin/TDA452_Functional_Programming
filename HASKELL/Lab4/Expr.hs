@@ -1,4 +1,7 @@
 import Parsing
+import Data.Char (isSpace)
+import Test.QuickCheck
+
 
 -- A --------------------------------------------------
 data Expr
@@ -6,16 +9,16 @@ data Expr
     | AddMul Opp Expr Expr
     | X
     | Func SinCos Expr
-    deriving Eq
+    deriving (Eq, Show)
 
 data SinCos = Sin | Cos
-    deriving Eq
+    deriving (Eq, Show)
 
 data Opp = Add | Mul
-    deriving Eq
+    deriving (Eq, Show)
 
-instance Show Expr where
-    show = showExpr -- this is needed so we can print nicely by simply typing "ex1 " in the console
+-- instance Show Expr where
+--     show = showExpr -- this is needed so we can print nicely by simply typing "ex1 " in the console
 
 x :: Expr
 x = X
@@ -33,7 +36,7 @@ sin e = Func Sin e
 cos e = Func Cos e
 
 -- (1+2) * x
-ex1 = AddMul Mul (AddMul Add (Num 1.0) (Num 2.0)) X
+ex1 = AddMul Mul (AddMul Add (Num 1.0) (Func Sin (Num 2))) X
 
 
 size :: Expr -> Int
@@ -63,8 +66,8 @@ data Expr
 
 showExpr :: Expr -> String
 showExpr (Num n)            = show n
-showExpr (AddMul Add e1 e2) = showExpr e1 ++ " + " ++ showExpr e2
-showExpr (AddMul Mul e1 e2) = showFactor e1 ++ " * " ++ showFactor e2
+showExpr (AddMul Add e1 e2) = showExpr e1 ++ "+" ++ showExpr e2
+showExpr (AddMul Mul e1 e2) = showFactor e1 ++ "*" ++ showFactor e2
 showExpr (Func Sin e1)    = "sin" ++ showFunc e1
 showExpr (Func Cos e1)    = "cos" ++ showFunc e1
 showExpr X                  = "x"
@@ -86,7 +89,7 @@ eval (Num n) x            = n
 eval X x                  = x
 eval (AddMul Add e1 e2) x = eval e1 x + eval e2 x
 eval (AddMul Mul e1 e2) x = eval e1 x * eval e2 x
-eval (Func Sin e1) x      = Prelude.sin (eval e1 x) 
+eval (Func Sin e1) x      = Prelude.sin (eval e1 x)
 eval (Func Cos e1) x      = Prelude.cos (eval e1 x)
 
 
@@ -95,14 +98,103 @@ eval (Func Cos e1) x      = Prelude.cos (eval e1 x)
 -- D -------------------------------------------------------------------
 
 
-exprParser :: Parser Expr
-exprParser = undefined
+number :: Parser Expr
+number = do
+    d <- readsP :: Parser Double
+    return $ Num d
+
+parseX :: Parser Expr
+parseX = do
+           char 'x'
+           return X
+
+expr, term, factor :: Parser Expr
+
+expr = foldl1 (AddMul Add) <$> chain term (char '+')
+term = foldl1 (AddMul Mul) <$> chain factor (char '*')
+factor =
+    number
+    <|> parseX
+    <|> func
+    <|> char '(' *> expr <* char ')'
+
+
+string :: String -> Parser String
+string s = filter (not . isSpace) <$> traverse char s
+
+func :: Parser Expr
+func = do
+    f <- string "sin" <|> string "cos"
+    e <- factor
+    return $ case f of
+        "sin" -> Func Sin e
+        "cos" -> Func Cos e
 
 
 readExpr :: String -> Maybe Expr
-readExpr input = case parse exprParser input of
+readExpr input = case parse expr input of
   Just (expr, "") -> Just expr
   _               -> Nothing
 
+-------------------------------------------------------------------
+
+-- E --------------------------------------------------------------
+
+arbExpr :: Int -> Gen Expr
+arbExpr 0 = oneof [return X, Num <$> choose(0.0,100.0)]
+arbExpr n | n > 0 = oneof [ Num <$> choose(0.0,100.0)
+                          , AddMul <$> elements [Add, Mul] <*> subExpr <*> subExpr
+                          , Func <$> elements [Sin, Cos] <*> subExpr
+                          ]
+  where subExpr = arbExpr (n `div` 2)
+
+instance Arbitrary Expr where
+  arbitrary = sized arbExpr
+
+assoc :: Expr -> Expr
+assoc (Num n)                            = Num n
+assoc X                                  = X
+assoc (AddMul Add (AddMul Add e1 e2) e3) = assoc (AddMul Add e1 (AddMul Add e2 e3))
+assoc (AddMul Mul (AddMul Mul e1 e2) e3) = assoc (AddMul Mul e1 (AddMul Mul e2 e3))
+assoc (AddMul op e1 e2)                  = AddMul op (assoc e1) (assoc e2)
+assoc (Func op e1)                       = Func op (assoc e1)
+
+
+prop_ShowReadExpr :: Expr -> Bool
+prop_ShowReadExpr expr = case readExpr (showExpr expr) of
+  Just expr' -> assoc expr == assoc expr'
+  Nothing    -> False
+
+-----------------------------------------------------------------
+
+-- smart adder :3
+add' (Num n) (Num m) = Num (n+m)
+add' (Num 0) e       = e
+add' e       (Num 0) = e
+add' e1      e2      = AddMul Add e1 e2
+
+--smart mul
+
+mul' (Num n) (Num m) = Num (n*m)
+mul' (Num 0) e       = (Num 0)
+mul' e       (Num 0) = (Num 0)
+mul' (Num 1) e       = e
+mul' e       (Num 1) = e
+mul' e1      e2      = AddMul Mul e1 e2
+
+
+
+
+simplify :: Expr -> Expr
+simplify (AddMul Add e1 e2) = add' e1 e2
+simplify (AddMul Mul e1 e2) = mul' e1 e2
+simplify (Func op e)        = Func op (simplify e)
+simplify X                  = X
+simplify (Num n)            = Num n
+
+prop_SimplifyPreservesValue :: Expr -> Double -> Bool
+prop_SimplifyPreservesValue expr val = eval expr val == eval (simplify expr) val
+
+-- F ------------------------------------------------------------
 
 
