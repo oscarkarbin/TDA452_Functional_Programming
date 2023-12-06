@@ -35,7 +35,7 @@ sin e = Func Sin e
 
 cos e = Func Cos e
 
--- (1+2) * x
+-- (1+sin(2)) * x
 ex1 = AddMul Mul (AddMul Add (Num 1.0) (Func Sin (Num 2))) X
 
 
@@ -176,18 +176,16 @@ add' e1      e2      = AddMul Add e1 e2
 --smart mul
 
 mul' (Num n) (Num m) = Num (n*m)
-mul' (Num 0) e       = (Num 0)
-mul' e       (Num 0) = (Num 0)
+mul' (Num 0) _       = Num 0
+mul' _       (Num 0) = Num 0
 mul' (Num 1) e       = e
 mul' e       (Num 1) = e
 mul' e1      e2      = AddMul Mul e1 e2
 
 
-
-
 simplify :: Expr -> Expr
-simplify (AddMul Add e1 e2) = add' e1 e2
-simplify (AddMul Mul e1 e2) = mul' e1 e2
+simplify (AddMul Add e1 e2) = add' (simplify e1) (simplify e2)
+simplify (AddMul Mul e1 e2) = mul' (simplify e1) (simplify e2)
 simplify (Func op e)        = Func op (simplify e)
 simplify X                  = X
 simplify (Num n)            = Num n
@@ -197,4 +195,13 @@ prop_SimplifyPreservesValue expr val = eval expr val == eval (simplify expr) val
 
 -- F ------------------------------------------------------------
 
+differentiate :: Expr -> Expr
+differentiate (Num _)        = Num 0
+differentiate X              = Num 1
+differentiate (AddMul Add e1 e2) = simplify (AddMul Add (differentiate e1) (differentiate e2))
+differentiate (AddMul Mul e1 e2) = simplify (AddMul Add (AddMul Mul (differentiate e1) e2) (AddMul Mul e1 (differentiate e2)))
+differentiate (Func Sin e)   = simplify (AddMul Mul (differentiate e) (Func Cos e))
+differentiate (Func Cos e)   = simplify (AddMul Mul (Num (-1)) (AddMul Mul (differentiate e) (Func Sin e)))
+
+------------------------------------------------------------------
 
