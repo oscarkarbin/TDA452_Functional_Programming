@@ -1,7 +1,7 @@
 -- This module is a starting point for implementing the Graph Drawing
 -- Calculator as described in Part II of the Standard Lab. You can use this
 -- directly, or just study it as an example of how to use threepenny-gui.
-
+import Expr
 import ThreepennyPages
 import Graphics.UI.Threepenny.Core as UI
 import qualified Graphics.UI.Threepenny as UI
@@ -9,6 +9,14 @@ import qualified Graphics.UI.Threepenny as UI
 canWidth,canHeight :: Num a => a
 canWidth  = 300
 canHeight = 300
+
+points :: Expr -> Double -> (Int, Int) -> [Point]
+points exp scale (width, height) =
+  [ (fromIntegral x, fromIntegral y)
+    | x <- [0 .. width - 1]
+    , let val = eval exp ((fromIntegral x - fromIntegral (width `div` 2)) / scale)
+          y = height - round (val * scale + fromIntegral (height `div` 2))
+  ]
 
 main :: IO ()
 main = startGUI defaultConfig setup
@@ -37,14 +45,32 @@ setup window =
      on valueChange' input $ \ _ -> readAndDraw input canvas
 
 
+-- readAndDraw :: Element -> Canvas -> UI ()
+-- readAndDraw input canvas =
+--   do -- Get the current formula (a String) from the input element
+--      formula <- get value input
+--      -- Clear the canvas
+--      clearCanvas canvas
+--      -- The following code draws the formula text in the canvas and a blue line.
+--      -- It should be replaced with code that draws the graph of the function.
+--      set UI.fillStyle (UI.solidColor (UI.RGB 0 0 0)) (pure canvas)
+--      UI.fillText formula (10,canHeight/2) canvas
+--      path "blue" [(10,10),(canWidth-10,canHeight/2)] canvas
+
+-- Function to read and draw expression graph
 readAndDraw :: Element -> Canvas -> UI ()
-readAndDraw input canvas =
-  do -- Get the current formula (a String) from the input element
-     formula <- get value input
-     -- Clear the canvas
-     clearCanvas canvas
-     -- The following code draws the formula text in the canvas and a blue line.
-     -- It should be replaced with code that draws the graph of the function.
-     set UI.fillStyle (UI.solidColor (UI.RGB 0 0 0)) (pure canvas)
-     UI.fillText formula (10,canHeight/2) canvas
-     path "blue" [(10,10),(canWidth-10,canHeight/2)] canvas
+readAndDraw input canvas = do
+    formula <- get value input
+    clearCanvas canvas
+    case readExpr formula of
+        Just expr -> drawGraph canvas expr
+        Nothing   -> return ()  -- or handle error
+
+-- Function to draw the graph of an expression
+drawGraph :: Canvas -> Expr -> UI ()
+drawGraph canvas expr = do
+    let scale = 20  -- Adjust scale as necessary
+    let graphPoints = points expr scale (canWidth, canHeight)
+    path "red" graphPoints canvas
+
+
