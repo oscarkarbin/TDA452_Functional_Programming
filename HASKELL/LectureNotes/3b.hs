@@ -1,4 +1,5 @@
 import Test.QuickCheck
+import Data.List
 
 
 
@@ -175,3 +176,39 @@ prop_rank _           = True
 
 prop_rank' r = classify (r < Jack) "Numeric"  -- classify will identify generated ranks that are less than a jack (All numeric)
              $ prop_rank r                      -- This is then displayd when runnin quickCheck
+
+data Card = Card Rank Suit
+      deriving (Eq, Show)
+-- | A hand of cards. This data type can also be used to represent a
+-- deck of cards.
+data Hand = Empty | Add Card Hand
+            deriving (Eq, Show)
+
+instance Arbitrary Card where
+    arbitrary = do
+        r <- arbitrary
+        s <- arbitrary
+        return (Card r s)
+
+toHand :: [Card] -> Hand
+toHand cs = foldr Add Empty cs
+
+rHands :: Gen Hand
+rHands = do
+    cards <- listOf arbitrary
+    return (toHand $ nub cards)
+
+instance Arbitrary Hand where
+    arbitrary = rHands
+
+
+newtype Poker = Poker Hand
+    deriving Show
+
+rPokerHands :: Gen Poker
+rPokerHands = do
+    cs <- vectorOf 5 arbitrary
+    return (Poker (toHand cs))
+
+instance Arbitrary Poker where
+    arbitrary = rPokerHands
