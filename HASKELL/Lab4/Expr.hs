@@ -1,3 +1,6 @@
+module Expr where
+
+
 import Parsing
 import Data.Char (isSpace)
 import Test.QuickCheck
@@ -203,5 +206,5 @@ differentiate (AddMul Mul e1 e2) = simplify (AddMul Add (AddMul Mul (differentia
 differentiate (Func Sin e)   = simplify (AddMul Mul (differentiate e) (Func Cos e))
 differentiate (Func Cos e)   = simplify (AddMul Mul (Num (-1)) (AddMul Mul (differentiate e) (Func Sin e)))
 
-------------------------------------------------------------------
+-- PART 2 -------------------------------------------------------------
 
