@@ -12,9 +12,10 @@ Start by writing the type signature for your function.
 
 posPairs :: Gen (Integer, Integer)
 posPairs = do
-    n <- arbitrary
-    mul <- choose(2,10)
-    return (n, n*mul)
+    (x',y') <- arbitrary
+    let x =abs x'
+    let y = 2 * x + abs y'
+    return (x,y)
 
 --------------------------------------------------------------
 
@@ -72,11 +73,55 @@ contains num = do
 
 -- Answer 5. --------------------------------------------------
 
+{-
+contains1 :: Arbitrary a => a -> Gen[a]
+contains1 item = do
+    front <- listOf arbitrary
+    back <- listOf arbitrary
+    return (front ++ [item] ++ back)
+
+This is almost correct. However to make it entirely general we have to allow other custom Gen:
+-}
+
+genContains :: Gen a -> a -> Gen[a]
+genContains gen item = do
+    front <- listOf gen
+    back <- listOf gen
+    return(front ++ [item] ++ back)
 
 
+contains1 num = arbitrary `genContains` num
 
+-------------------------------------------------------------------------
 
-    
+{-6. Give a definition for the QuickCheck function elements. Hint: use arbitrary and choose.-}
+
+elements1 :: [a] -> Gen a
+elements1 list = do
+    index <- choose (0 ,(length list) -1 )
+    return $ list !! index
+
+-- 7.
+
+data Card = Card Rank Suit
+      deriving (Eq, Show)
+
+data Rank = Numeric Integer | Jack | Queen | King | Ace
+            deriving (Eq, Show)
+
+-- | All the different suits.
+data Suit = Hearts | Spades | Diamonds | Clubs
+            deriving (Eq, Show)
+
+-- | A hand of cards. This data type can also be used to represent a
+-- deck of cards.
+data Hand = Empty | Add Card Hand
+            deriving (Eq, Show)
+
+shrink' Empty = []
+shrink' (Add c h) = Empty : h : [Add c h' | h'<- shrink' h]
+
+hand1 = Add (Card (Numeric 7) Diamonds) (Add (Card Queen Clubs) (Add (Card King Hearts) Empty))
 
     
     
